@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Tao.FreeGlut;
 using OpenGL;
 
@@ -21,7 +21,7 @@ namespace OpenGLTutorial1{
 				uv = vertexUV;
                 gl_Position = projection_matrix 
                 * view_matrix * model_matrix *
-                vec4(vertexPosition,gl_Position.y);
+                vec4(vertexPosition,1);
             }
         ";
 
@@ -39,19 +39,16 @@ namespace OpenGLTutorial1{
 
         private static int width = 1280, height = 720;
         private static ShaderProgram program;
-		private static VBO<Vector3> cube, rect, pyramid;
-		private static VBO<int> cubeElements, rectElements, pyramidElements;
+		private static VBO<Vector3> cube;
+		private static VBO<int> cubeElements;
 
-		private static VBO<Vector2> cubeUV, rectUV, pyUV;
+		private static VBO<Vector2> cubeUV;
 		private static Texture crateTexture, rectTexture, pyTexture;
 
-		private static System.Diagnostics.Stopwatch watch;
-		private static float angle;
-		private static float speedT1 = 1, speedS = 0.5f;
-
-		private static int numShapes = 3;
-		static int maxX = 2;
-		private static int[] texRandom = new int[numShapes];
+		private static int numShapes = 24;
+		static int maxX = 6;
+		static int maxY = 4;
+		private static int[] texRandom;
 
         static void Main(string[] args){
 			//Open GL init
@@ -85,14 +82,17 @@ namespace OpenGLTutorial1{
                 Matrix4.LookAt(new Vector3(0, 0, 10), 
                 Vector3.Zero, new Vector3(0, 1, 0)));
 
+			//random texture for each 
+			if(numShapes > maxX * maxY)
+				numShapes = maxX * maxY;
+			texRandom = new int[numShapes];
 			crateTexture = new Texture("crate.jpg");
 			rectTexture = new Texture("4922.jpg");
 			pyTexture = new Texture("tile.jpg");
-
 			Random r = new Random();
 			for(int i = 0; i < numShapes; i++)
 				texRandom[i] = r.Next(3);
-
+			
 
 			//Cube vertices and uv
 			#region
@@ -122,9 +122,6 @@ namespace OpenGLTutorial1{
 			);
 			#endregion
 
-
-			watch = System.Diagnostics.Stopwatch.StartNew();
-
 			Glut.glutMainLoop();
 
         }
@@ -140,11 +137,6 @@ namespace OpenGLTutorial1{
         }
 
         private static void OnRenderFrame(){
-			//Clock tick used for animation
-			watch.Stop();
-			float deltaTime = (float)watch.ElapsedTicks/System.Diagnostics.Stopwatch.Frequency;
-			watch.Restart();
-			angle += deltaTime;
 
             Gl.Viewport(0, 0, width, height);
             Gl.Clear(ClearBufferMask.ColorBufferBit 
@@ -156,19 +148,20 @@ namespace OpenGLTutorial1{
 			//Drawing cube
 			#region
 			int num = 0;
-			for(int j = 0; j < 4; j++) {
+			for(int j = 0; j < maxY; j++) {
 				for(int i = 0; i < maxX; i++) {
 					if(num == numShapes)
 						break;
 
+					//select texture
 					if(texRandom[num] == 0)
 						Gl.BindTexture(crateTexture);
 					else if(texRandom[num] == 1)
 						Gl.BindTexture(rectTexture);
 					else
 						Gl.BindTexture(pyTexture);
-					//x min -3		//y max 1.5
 
+					//set translation offset
 					program["model_matrix"].SetValue(
 						Matrix4.CreateScaling(new Vector3(0.5f, 0.5f, 0.5f)) *
 						Matrix4.CreateTranslation(new Vector3(-3 + i * 1.1f, 1.5f - j * 1.1f, 0)));

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Tao.FreeGlut;
 using OpenGL;
 
@@ -21,7 +21,7 @@ namespace OpenGLTutorial1{
 				uv = vertexUV;
                 gl_Position = projection_matrix 
                 * view_matrix * model_matrix *
-                vec4(vertexPosition,gl_Position.y);
+                vec4(vertexPosition,1);
             }
         ";
 
