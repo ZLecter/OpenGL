@@ -82,9 +82,11 @@ namespace OpenGLTutorial1{
 			Gl.ClearColor(0,0,0,1);
 
 			//Alpha enabled
+			
 			Gl.Enable(EnableCap.DepthTest);
 			Gl.Enable(EnableCap.Blend);
-			Gl.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+			//Gl.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+			
 			#endregion
 
 			//Load shader
@@ -98,6 +100,11 @@ namespace OpenGLTutorial1{
             program["view_matrix"].SetValue(
                 Matrix4.LookAt(new Vector3(0, 0, 10), 
                 Vector3.Zero, new Vector3(0, 1, 0)));
+			//Create light
+			program["light_direction"].SetValue(new Vector3(0,0,1));
+			program["enable_lighting"].SetValue(lighting);
+
+
 
 			//Cube vertices and uv
 			#region
@@ -224,6 +231,8 @@ namespace OpenGLTutorial1{
 			program["model_matrix"].SetValue(
 				Matrix4.CreateRotationX(xangle) *
 				Matrix4.CreateRotationY(yangle));
+			program["enable_lighting"].SetValue(lighting);
+
 			Gl.BindBufferToShaderAttribute(cube, program, "vertexPosition");
 			Gl.BindBufferToShaderAttribute(cubeUV, program, "vertexUV");
 			Gl.BindBuffer(cubeElements);
