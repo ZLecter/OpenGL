@@ -1,6 +1,7 @@
 using System;
 using Tao.FreeGlut;
 using OpenGL;
+using System.Collections.Generic;
 
 namespace OpenGLTutorial1{
     class Program{
@@ -10,58 +11,52 @@ namespace OpenGLTutorial1{
             
             in vec3 vertexPosition;
 			in vec2 vertexUV;
-			in vec3 vertexNormal;
 
 			out vec2 uv;
-			out vec3 normal;
 
             uniform mat4 projection_matrix;
             uniform mat4 view_matrix;
             uniform mat4 model_matrix;
 
             void main(void){
-				normal = normalize((model_matrix *
-									vec4(floor(vertexNormal), 0)).xyz);
 				uv = vertexUV;
                 gl_Position = projection_matrix 
-                * view_matrix * model_matrix *
-                vec4(vertexPosition,1);
+							* view_matrix * model_matrix *
+							vec4(vertexPosition,1);
             }
         ";
 
         public static string FragmentShader = @"
             #version 130
 			uniform sampler2D texture;
-			uniform vec3 light_direction;
-			uniform bool enable_lighting;
+			uniform vec3 color;			
 
-			in vec3 normal;
 			in vec2 uv;
 
 			out vec4 fragment;
             
             void main(void){
-				float diffuse = max(dot(normal, light_direction), 0);
-				float ambient = 0.3;
-				float lighting = (enable_lighting ? max(diffuse, ambient) : 1);
-				fragment = lighting * texture2D(texture, uv);
+				fragment = vec4(color * texture2D(texture, uv).xyz, 1);
             }
         ";
 
         private static int width = 1280, height = 720;
+
         private static ShaderProgram program;
-		private static VBO<Vector3> cube;
-		private static VBO<int> cubeElements;
-		private static VBO<Vector2> cubeUV;
-		private static Texture crateTexture;
+		private static VBO<Vector3> start;
+		private static VBO<int> startElements;
+		private static VBO<Vector2> startUV;
+		private static Texture starTexture;
 
 		private static System.Diagnostics.Stopwatch watch;
-		private static float angle;
-		private static float speedS = 0.5f;
-
-		private static float xangle, yangle;
+		
 		private static bool autoRotate, lighting = true, fullscreen;
 		private static bool left, right, up, down;
+
+		private static List<Star> s = new List<Star>();
+		private static Random rng = new Random(Environment.TickCount);
+		private static float theta = (float)Math.PI / 2, phi = (float)Math.PI / 2;
+		private static int numStars = 600;
 
         static void Main(string[] args){
 			//Open GL init
@@ -79,13 +74,12 @@ namespace OpenGLTutorial1{
 			Glut.glutKeyboardFunc(OnKeyboardDown);
 			Glut.glutKeyboardUpFunc(OnKeyboardUp);
 
-			Gl.ClearColor(0,0,0,1);
+			//Gl.ClearColor(0,0,0,1);
 
 			//Alpha enabled
-			
-			Gl.Enable(EnableCap.DepthTest);
+			Gl.Disable(EnableCap.DepthTest);
 			Gl.Enable(EnableCap.Blend);
-			//Gl.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+			Gl.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.One);
 			
 			#endregion
 
@@ -101,40 +95,37 @@ namespace OpenGLTutorial1{
                 Matrix4.LookAt(new Vector3(0, 0, 10), 
                 new Vector3(0, 0, 0),
 				new Vector3(0, 1, 0)));
-			//Create light
-			program["light_direction"].SetValue(new Vector3(0,0,1));
-			program["enable_lighting"].SetValue(lighting);
 
-
-
-			//Cube vertices and uv
+			starTexture = new Texture("star.bmp");
+			//start vertices and uv
 			#region
-			crateTexture = new Texture("crate.jpg");
-			cube = new VBO<Vector3>(
+			start = new VBO<Vector3>(
 				new Vector3[] {
-					new Vector3(1,1,-1), new Vector3(-1,1,-1), new Vector3(-1,1,1), new Vector3(1,1,1),
-					new Vector3(1,-1,1), new Vector3(-1,-1,1), new Vector3(-1,-1,-1), new Vector3(1,-1,-1),
-					new Vector3(1,1,1), new Vector3(-1,1,1), new Vector3(-1,-1,1), new Vector3(1,-1,1),
-					new Vector3(1,-1,-1), new Vector3(-1,-1,-1), new Vector3(-1,1,-1), new Vector3(1,1,-1),
-					new Vector3(-1,1,1), new Vector3(-1,1,-1), new Vector3(-1,-1,-1), new Vector3(-1,-1,1),
-					new Vector3(1,1,-1), new Vector3(1,1,1), new Vector3(1,-1,1), new Vector3(1,-1,-1),
+					new Vector3(-1, 1, 0), new Vector3(1, 1, 0),
+					new Vector3(1, -1, 0), new Vector3(-1, -1, 0)
 				}
 			);
-			cubeElements = new VBO<int>(
-				new int[] { 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23 },
+			startElements = new VBO<int>(
+				new int[] { 0,1,2,3},
 				BufferTarget.ElementArrayBuffer
 			);
-			cubeUV = new VBO<Vector2>(
+			startUV = new VBO<Vector2>(
 				new Vector2[] {
-					new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
-					new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
-					new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
-					new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
-					new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
 					new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1)
 				}
 			);
 			#endregion
+
+			//Define stars
+			float dist = 0;
+			float r, g, b;
+			for(int i = 0; i < numStars; i++) {
+				dist = (float)i / numStars * 4f;
+				r = (float)rng.NextDouble();
+				g = (float)rng.NextDouble();
+				b = (float)rng.NextDouble();
+				s.Add(new Star(0, dist, new Vector3(r, g, b)));
+			}
 
 			watch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -190,9 +181,9 @@ namespace OpenGLTutorial1{
 
         private static void OnClose(){
             //Delete all resources on closing
-			cube.Dispose();
-            cubeElements.Dispose();
-			cubeUV.Dispose();
+			start.Dispose();
+            startElements.Dispose();
+			startUV.Dispose();
 
 			program.DisposeChildren = true;
             program.Dispose();
@@ -204,20 +195,18 @@ namespace OpenGLTutorial1{
 			float deltaTime = (float)watch.ElapsedTicks/System.Diagnostics.Stopwatch.Frequency;
 			watch.Restart();
 
-			//define rotations based on pressed keys
-			if(autoRotate) {
-				xangle += deltaTime / 2;
-				yangle += deltaTime;
-			}
-
+			//Perfom rotations
 			if(up)
-				xangle -= deltaTime;
+				theta += deltaTime;
 			if(down)
-				xangle += deltaTime;
+				theta -= deltaTime;
 			if(left)
-				yangle -= deltaTime;
+				phi -= deltaTime;
 			if(right)
-				yangle += deltaTime;
+				phi += deltaTime;
+
+			if(theta < 0)
+				theta += (float)Math.PI * 2;
 
             Gl.Viewport(0, 0, width, height);
             Gl.Clear(ClearBufferMask.ColorBufferBit 
@@ -226,20 +215,50 @@ namespace OpenGLTutorial1{
             //Use shader
             Gl.UseProgram(program);
 
-			//Drawing cube
-			#region
-			Gl.BindTexture(crateTexture);
-			program["model_matrix"].SetValue(
-				Matrix4.CreateRotationX(xangle) *
-				Matrix4.CreateRotationY(yangle));
-			program["enable_lighting"].SetValue(lighting);
+			//Calculate something
+			Gl.BindTexture(starTexture);
+			Vector3 pos = 20 * new Vector3(
+				(float)(Math.Cos(phi) * Math.Sin(theta)),
+				(float)(Math.Cos(theta)),
+				(float)(Math.Sin(phi) * Math.Sin(theta)));
+			Vector3 upVector = ((theta % (Math.PI * 2)) > Math.PI) ? 
+				new Vector3(0,1,0) :
+				new Vector3(0,-1,0);
 
-			Gl.BindBufferToShaderAttribute(cube, program, "vertexPosition");
-			Gl.BindBufferToShaderAttribute(cubeUV, program, "vertexUV");
-			Gl.BindBuffer(cubeElements);
+			program["view_matrix"].SetValue(Matrix4.LookAt(pos, Vector3.Zero, upVector));
+
+			//Drawing stars
+			#region
+			for(int i = 0; i < numStars; i++) {
+				program["model_matrix"].SetValue(
+					Matrix4.CreateScaling(new Vector3(0.1f, 0.1f, 0.1f)) *
+					Matrix4.CreateTranslation(new Vector3(s[i].dist * Math.Cos(s[i].dist), 0, 0)) *
+					Matrix4.CreateRotationZ(s[i].angle)
+				);
+				// z = Math.Cos(s[i].angle + s[i].dist)
+				// x = s[i].dist * Math.Cos(s[i].dist + s[i].angle)
+				program["color"].SetValue(s[i].color);
+				
+				Gl.BindBufferToShaderAttribute(start, program, "vertexPosition");
+				Gl.BindBufferToShaderAttribute(startUV, program, "vertexUV");
+				Gl.BindBuffer(startElements);
 			
-			Gl.DrawElements(BeginMode.Quads, cubeElements.Count,
-				DrawElementsType.UnsignedInt, IntPtr.Zero);
+				Gl.DrawElements(BeginMode.Quads, startElements.Count,
+					DrawElementsType.UnsignedInt, IntPtr.Zero);
+
+				s[i].angle += (float)i / s.Count * deltaTime * 2;
+				s[i].dist -= 1f * deltaTime;
+
+				if(s[i].dist < 0f){
+					s[i].dist += 4f;
+					s[i].color = new Vector3(
+						(float)rng.NextDouble(),
+						(float)rng.NextDouble(),
+						(float)rng.NextDouble()
+					);
+				}
+
+			}
 			#endregion
 
 			Glut.glutSwapBuffers();
@@ -250,4 +269,17 @@ namespace OpenGLTutorial1{
         }
 
     }
+}
+
+
+public class Star{
+	public float angle;
+	public float dist;
+	public Vector3 color;
+
+	public Star(float angle, float dist, Vector3 color){
+		this.angle = angle;
+		this.dist = dist;
+		this.color = color;
+	}
 }

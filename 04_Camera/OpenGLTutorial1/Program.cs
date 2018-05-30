@@ -61,7 +61,9 @@ namespace OpenGLTutorial1{
 
 		private static float xangle, yangle;
 		private static bool autoRotate, lighting = true, fullscreen;
-		private static bool left, right, up, down;
+
+		private static float xCam = 0, yCam = 1, zCam = 0;
+		private static float mov = 0.1f;
 
         static void Main(string[] args){
 			//Open GL init
@@ -99,7 +101,7 @@ namespace OpenGLTutorial1{
                 (float)width / height, 0.1f, 1000f));
             program["view_matrix"].SetValue(
                 Matrix4.LookAt(new Vector3(0, 0, 10), 
-                new Vector3(0, 0, 0),
+                new Vector3(xCam, 0, zCam),
 				new Vector3(0, 1, 0)));
 			//Create light
 			program["light_direction"].SetValue(new Vector3(0,0,1));
@@ -152,27 +154,26 @@ namespace OpenGLTutorial1{
 
 		private static void OnKeyboardDown(byte key, int x, int y){
 			if(key == 'w')
-				up = true;
+				zCam -= mov + 0.2f;
 			else if(key == 's')
-				down = true;
-			else if(key == 'd')
-				right = true;
+				zCam += mov + 0.2f;
+
+			if(key == 'd')
+				xCam += mov;
 			else if(key == 'a')
-				left = true;
-			else if(key == 27)
+				xCam -= mov;
+
+			if(key == 'q')
+				yCam -= mov;
+			else if(key == 'e')
+				yCam += mov;
+
+			if(key == 27)
 				Glut.glutLeaveMainLoop();
 		}
 
 		private static void OnKeyboardUp(byte key, int x, int y){
-			if(key == 'w')
-				up = false;
-			else if(key == 's')
-				down = false;
-			else if(key == 'd')
-				right = false;
-			else if(key == 'a')
-				left = false;
-			else if(key == 'l')
+			if(key == 'l')
 				lighting = !lighting;
 			else if(key == 'f') {
 				fullscreen = !fullscreen;
@@ -204,42 +205,35 @@ namespace OpenGLTutorial1{
 			float deltaTime = (float)watch.ElapsedTicks/System.Diagnostics.Stopwatch.Frequency;
 			watch.Restart();
 
-			//define rotations based on pressed keys
-			if(autoRotate) {
-				xangle += deltaTime / 2;
-				yangle += deltaTime;
-			}
-
-			if(up)
-				xangle -= deltaTime;
-			if(down)
-				xangle += deltaTime;
-			if(left)
-				yangle -= deltaTime;
-			if(right)
-				yangle += deltaTime;
-
             Gl.Viewport(0, 0, width, height);
             Gl.Clear(ClearBufferMask.ColorBufferBit 
                 | ClearBufferMask.DepthBufferBit);
 
-            //Use shader
-            Gl.UseProgram(program);
+			//Update Camera Pos
+			/*
+			program["view_matrix"].SetValue(
+				Matrix4.LookAt(new Vector3(xCam, yCam, zCam + 10),
+				new Vector3(xCam, yCam, zCam),
+				new Vector3(0, 1, 0)));
+			*/
+			//New update camera pos
+			program["view_matrix"].SetValue(
+				Matrix4.CreateTranslation(new Vector3(xCam, 1, zCam)) *
+				Matrix4.LookAt(new Vector3(0, 0, -5),
+				new Vector3(0, 0, 0),
+				new Vector3(0, 1, 0)));
 
-			//Drawing cube
+			//Use shader
+			Gl.UseProgram(program);
+
+			//Drawing cubes
 			#region
-			Gl.BindTexture(crateTexture);
-			program["model_matrix"].SetValue(
-				Matrix4.CreateRotationX(xangle) *
-				Matrix4.CreateRotationY(yangle));
-			program["enable_lighting"].SetValue(lighting);
-
-			Gl.BindBufferToShaderAttribute(cube, program, "vertexPosition");
-			Gl.BindBufferToShaderAttribute(cubeUV, program, "vertexUV");
-			Gl.BindBuffer(cubeElements);
-			
-			Gl.DrawElements(BeginMode.Quads, cubeElements.Count,
-				DrawElementsType.UnsignedInt, IntPtr.Zero);
+			DrawShapeCustom(cube, cubeUV, cubeElements, crateTexture, BeginMode.Quads, 0, 1, 0);
+			for(int i = 0; i < 4; i++) {
+				for(int j = 0; j < 5; j++) {
+					DrawShapeCustom(cube, cubeUV, cubeElements, crateTexture, BeginMode.Quads, i * 2, -3 + (i%2*2), j * 2);
+				}
+			}
 			#endregion
 
 			Glut.glutSwapBuffers();
@@ -248,6 +242,22 @@ namespace OpenGLTutorial1{
         private static void OnDisplay(){
 
         }
+
+		private static void DrawShapeCustom(VBO<Vector3> shape, VBO<Vector2> uvs, VBO<int> elements, Texture tex, OpenGL.BeginMode mode, float x, float y, float z) {
+			Gl.BindTexture(tex);
+			program["model_matrix"].SetValue(
+				Matrix4.CreateTranslation(new Vector3(x, y, z)));
+			program["enable_lighting"].SetValue(lighting);
+
+			Gl.BindBufferToShaderAttribute(shape, program, "vertexPosition");
+			Gl.BindBufferToShaderAttribute(uvs, program, "vertexUV");
+			Gl.BindBuffer(elements);
+
+			Gl.DrawElements(mode, cubeElements.Count,
+				DrawElementsType.UnsignedInt, IntPtr.Zero);
+
+			
+		}
 
     }
 }
