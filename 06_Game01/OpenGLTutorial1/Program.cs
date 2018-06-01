@@ -43,20 +43,29 @@ namespace OpenGLTutorial1{
         private static int width = 1280, height = 720;
 
         private static ShaderProgram program;
-		private static VBO<Vector3> start;
-		private static VBO<int> startElements;
-		private static VBO<Vector2> startUV;
-		private static Texture starTexture;
+		private static VBO<Vector3> start, player;
+		private static VBO<int> startElements, playerElements;
+		private static VBO<Vector2> startUV, playerUV;
+		private static Texture starTexture, playerTexture, enemyTexture;
+		private static Vector3 playerColor;
 
 		private static System.Diagnostics.Stopwatch watch;
+		private static Random rng = new Random();
 		
 		private static bool autoRotate, lighting = true, fullscreen;
-		private static bool left, right, up, down;
+		private static bool left, right, up, down, shoot;
+		private static float playerX = -2f, playerY = 0;
+		private static float speed = 0.01f;
+		private static float limX = 3.8f, limY = 1.8f;
 
-		private static List<Star> s = new List<Star>();
-		private static Random rng = new Random(Environment.TickCount);
-		private static float theta = (float)Math.PI / 2, phi = (float)Math.PI / 2;
-		private static int numStars = 300;
+		private static List<Shot> shots = new List<Shot>();
+		private static float timeShot = -1;
+		private static float speedShot = 0.3f;
+
+		private static List<Shot> enemies = new List<Shot>();
+		private static float timeEnemy = -1;
+		private static float speedEnemy = 1f;
+
 
         static void Main(string[] args){
 			//Open GL init
@@ -97,6 +106,9 @@ namespace OpenGLTutorial1{
 				new Vector3(0, 1, 0)));
 
 			starTexture = new Texture("star.bmp");
+			playerTexture = new Texture("crate.jpg");
+			enemyTexture = new Texture("tile.jpg");
+			playerColor = new Vector3(1,1,1);
 			//start vertices and uv
 			#region
 			start = new VBO<Vector3>(
@@ -116,16 +128,24 @@ namespace OpenGLTutorial1{
 			);
 			#endregion
 
-			//Define stars
-			float dist = 0;
-			float r, g, b;
-			for(int i = 0; i < numStars; i++) {
-				dist = (float)i / numStars * 4f;
-				r = (float)rng.NextDouble();
-				g = (float)rng.NextDouble();
-				b = (float)rng.NextDouble();
-				s.Add(new Star(0, dist, new Vector3(r, g, b)));
-			}
+			//Player
+			
+			player = new VBO<Vector3>(
+				new Vector3[]{
+					new Vector3(0,0.7,0), new Vector3(1,0,0), new Vector3(0,-0.7,0), new Vector3(-0.5, 0, 0)
+				}
+			);
+			playerElements = new VBO<int>(
+				new int[] {0,1,2,3},
+				BufferTarget.ElementArrayBuffer
+			);
+			playerUV = new VBO<Vector2>(
+				new Vector2[] {
+					new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1)
+				}
+			);
+			
+
 
 			watch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -150,6 +170,8 @@ namespace OpenGLTutorial1{
 				right = true;
 			else if(key == 'a')
 				left = true;
+			else if(key == 32)
+				shoot = true;
 			else if(key == 27)
 				Glut.glutLeaveMainLoop();
 		}
@@ -169,12 +191,12 @@ namespace OpenGLTutorial1{
 				fullscreen = !fullscreen;
 				if(fullscreen)
 					Glut.glutFullScreen();
-				else{
-					Glut.glutPositionWindow(0,0);
+				else {
+					Glut.glutPositionWindow(0, 0);
 					Glut.glutReshapeWindow(1280, 720);
 				}
 			} else if(key == 32)
-				autoRotate = !autoRotate;
+				shoot = false;
 			else if(key == 27)
 				Glut.glutLeaveMainLoop();
 		}
@@ -195,72 +217,107 @@ namespace OpenGLTutorial1{
 			float deltaTime = (float)watch.ElapsedTicks/System.Diagnostics.Stopwatch.Frequency;
 			watch.Restart();
 
-			//Perfom rotations
+			//Perfom movement
 			if(up)
-				theta += deltaTime;
+				playerY += speed;
 			if(down)
-				theta -= deltaTime;
+				playerY -= speed;
 			if(left)
-				phi -= deltaTime;
+				playerX -= speed;
 			if(right)
-				phi += deltaTime;
+				playerX += speed;
 
-			if(theta < 0)
-				theta += (float)Math.PI * 2;
+			if(playerX > limX - 0.25f)
+				playerX = limX - 0.25f;
+			else if(playerX < -limX)
+				playerX = -limX;
+			//Clamp movement
+			if(playerY > limY)
+				playerY = limY;
+			else if(playerY < -limY)
+				playerY = -limY;
 
-            Gl.Viewport(0, 0, width, height);
+			if(shoot && timeShot <= 0) {
+				Vector3 c = new Vector3(rng.NextDouble(), rng.NextDouble(), rng.NextDouble());
+				shots.Add(new Shot(playerX + 0.6f, playerY, c));
+				timeShot = speedShot;
+			}
+
+			if(timeEnemy <= 0) {
+				float ey = (rng.Next() < 0.5)? -1: 1;
+				ey *= (float)rng.NextDouble() * limY;
+				float ex = limX + 0.5f;
+				enemies.Add(new Shot(ex, ey, Vector3.One));
+				timeEnemy = speedEnemy;
+			}
+
+			Gl.Viewport(0, 0, width, height);
             Gl.Clear(ClearBufferMask.ColorBufferBit 
                 | ClearBufferMask.DepthBufferBit);
 
             //Use shader
             Gl.UseProgram(program);
+			program["color"].SetValue(playerColor);
 
+			//Player Draw
+			program["model_matrix"].SetValue(
+				Matrix4.CreateScaling(new Vector3(0.5, 0.5, 0.5)) *
+				Matrix4.CreateTranslation(new Vector3(playerX, playerY, 0))
+			);
+			Gl.BindTexture(playerTexture);
+			Gl.BindBufferToShaderAttribute(player, program, "vertexPosition");
+			Gl.BindBufferToShaderAttribute(playerUV, program, "vertexUV");
+			Gl.BindBuffer(playerElements);
+
+			Gl.DrawElements(BeginMode.Quads, playerElements.Count,
+				DrawElementsType.UnsignedInt, IntPtr.Zero);
+			
+
+
+			
 			//Calculate something
 			Gl.BindTexture(starTexture);
-			Vector3 pos = 20 * new Vector3(
-				(float)(Math.Cos(phi) * Math.Sin(theta)),
-				(float)(Math.Cos(theta)),
-				(float)(Math.Sin(phi) * Math.Sin(theta)));
-			Vector3 upVector = ((theta % (Math.PI * 2)) > Math.PI) ? 
-				new Vector3(0,1,0) :
-				new Vector3(0,-1,0);
+			for(int i = shots.Count-1; i > 0; i--) {
+				program["color"].SetValue(shots[i].color);
 
-			program["view_matrix"].SetValue(Matrix4.LookAt(pos, Vector3.Zero, upVector));
-
-			//Drawing stars
-			#region
-			for(int i = 0; i < numStars; i++) {
 				program["model_matrix"].SetValue(
-					Matrix4.CreateScaling(new Vector3(0.1f, 0.1f, 0.1f)) *
-					Matrix4.CreateTranslation(new Vector3(s[i].dist * Math.Cos(s[i].dist), 0,
-												s[i].dist * -0.05 * Math.Cos(rng.NextDouble()))) *
-					Matrix4.CreateRotationZ(s[i].angle)
+					Matrix4.CreateScaling(new Vector3(0.3f, 0.3f, 0.3f)) *
+					Matrix4.CreateTranslation(new Vector3(shots[i].x, shots[i].y, 0))
 				);
-				// z = Math.Cos(s[i].angle + s[i].dist)
-				// x = s[i].dist * Math.Cos(s[i].dist + s[i].angle)
-				program["color"].SetValue(s[i].color);
-				
 				Gl.BindBufferToShaderAttribute(start, program, "vertexPosition");
 				Gl.BindBufferToShaderAttribute(startUV, program, "vertexUV");
 				Gl.BindBuffer(startElements);
-			
+
 				Gl.DrawElements(BeginMode.Quads, startElements.Count,
 					DrawElementsType.UnsignedInt, IntPtr.Zero);
 
-				s[i].angle += (float)i / s.Count * deltaTime * (rng.Next(2, 4) * 2);
-				s[i].dist -= (1f * rng.Next(0, 2)) * deltaTime;
-
-				if(s[i].dist < 0f){
-					s[i].dist += 4f;
-					s[i].color = new Vector3(
-						(float)rng.NextDouble(),
-						(float)rng.NextDouble(),
-						(float)rng.NextDouble()
-					);
-				}
-
+				shots[i].x += Shot.speed;
+				if(shots[i].x > limX)
+					shots.RemoveAt(i);
 			}
-			#endregion
+
+			Gl.BindTexture(enemyTexture);
+			for(int i = enemies.Count - 1; i > 0; i--) {
+				program["color"].SetValue(enemies[i].color);
+
+				program["model_matrix"].SetValue(
+					Matrix4.CreateScaling(new Vector3(0.5f, 0.5f, 0.5f)) *
+					Matrix4.CreateTranslation(new Vector3(enemies[i].x, enemies[i].y, 0))
+				);
+				Gl.BindBufferToShaderAttribute(start, program, "vertexPosition");
+				Gl.BindBufferToShaderAttribute(startUV, program, "vertexUV");
+				Gl.BindBuffer(startElements);
+
+				Gl.DrawElements(BeginMode.Quads, startElements.Count,
+					DrawElementsType.UnsignedInt, IntPtr.Zero);
+
+				enemies[i].x -= Shot.speed * 0.3f;
+				if(enemies[i].x < -limX - 0.7f)
+					enemies.RemoveAt(i);
+			}
+
+			timeShot -= deltaTime;
+			timeEnemy -= deltaTime;
 
 			Glut.glutSwapBuffers();
         }
@@ -272,15 +329,15 @@ namespace OpenGLTutorial1{
     }
 }
 
-
-public class Star{
-	public float angle;
-	public float dist;
+public class Shot{
+	public float x, y;
 	public Vector3 color;
+	public static float speed = 0.01f;
 
-	public Star(float angle, float dist, Vector3 color){
-		this.angle = angle;
-		this.dist = dist;
+	public Shot(float x, float y, Vector3 color){
+		this.x = x;
+		this.y = y;
 		this.color = color;
 	}
+
 }
