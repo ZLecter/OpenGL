@@ -19,6 +19,14 @@ namespace OpenGLTutorial1 {
 			value = (value - startA) / (stopA - startA);
 			return startB + value * (stopB - startB);
 		}
+
+		public static int Vector2Distance(int x1, int y1, int x2, int y2) {
+			//This is for corners
+			if(y1==y2)
+				return ((x1 - x2) * (x1 - x2)) + ((y1 - y2) * (y1 - y2));
+			else
+				return ((x1 - x2) * (x1 - x2)) + ((y1 - y2) * (y1 - y2)) - 1;
+		}
 	}
 
 	class Map {
@@ -27,13 +35,15 @@ namespace OpenGLTutorial1 {
 		int maxBlocks = 10;
 		double probTreeSpawn = 0.1;
 
+		//public static int RenderDistance = 3;
+
 		public Map(int x, int y) {
 			map = new Block[x, mapHeight,y];
 			PerlinNoise noise = new PerlinNoise();
 			Random rng = new Random();
 			PerlinNoise.Seed = rng.Next(0, 123456789);
 			PerlinNoise.Seed = 1;
-			float perlinScale = (float)1 / 12;
+			float perlinScale = (float)1 / 20;
 
 			for(int i = 0; i < x; i++) {
 				for(int j = 0; j < y; j++) {
@@ -140,10 +150,74 @@ namespace OpenGLTutorial1 {
 		}
 
 		public void Draw(ShaderProgram shader) {
-			foreach(Block b in map) {
-				if(b != null)
-					b.Draw(shader);
+			int blocksRendered = 0;
+
+			//Should we render blocks based on camera's distance?
+			
+			//Optimize draws, only render block that has atleast one empty neighbour
+			for(int y = 0; y < map.GetLength(1); y++){
+				for(int x = 0; x < map.GetLength(0); x++){
+					for(int z = 0; z < map.GetLength(2); z++){
+						//No need to draw null block
+						if(map[x, y, z] == null)
+							continue;
+
+						int pyDist = ExtraMath.Vector2Distance((int)-Game.player.position.X, -(int)Game.player.position.Z, x, z);
+						if(pyDist > Game.player.RenderDistance * 2)
+							continue;
+
+						if(IsBlockOnEdge(x,y,z)){
+							map[x, y, z].Draw(shader);
+							blocksRendered++;
+						} else if(IsBlockInside(x, y, z) && BlockCanBeDraw(x,y,z)) {
+							map[x, y, z].Draw(shader);
+							blocksRendered++;
+						}
+
+					}
+				}
 			}
+			Console.WriteLine("Blocks Rendered Opt: " + blocksRendered);
+			
+
+			//RENDER ALL BLOCKS. THIS IS NOT OPTIMIZED
+			/*
+			blocksRendered = 0;
+			foreach(Block b in map) {
+				if(b != null){
+					b.Draw(shader);
+					blocksRendered++;
+				}
+			}
+			Console.WriteLine("Blocks Rendered Normal: " + blocksRendered);
+			*/
+
+		}
+
+		private bool BlockCanBeDraw(int x, int y, int z) {
+			if(map[x, y, z + 1] == null || map[x, y, z - 1] == null ||
+				map[x + 1, y, z] == null || map[x - 1, y, z] == null ||
+				map[x, y + 1, z] == null) {
+				return true;
+			} else
+				return false;
+		}
+
+		private bool IsBlockInside(int x, int y, int z) {
+			if(x >= 1 && x < map.GetLength(0) - 1 &&
+				y >= 1 && y < map.GetLength(1) - 1 &&
+				z >= 1 && z < map.GetLength(2) - 1) {
+				return true;
+			} else
+				return false;
+		}
+
+		private bool IsBlockOnEdge(int x, int y, int z) {
+			if(z == 0 || x == 0 || y == 0 ||
+				z == map.GetLength(1) - 1 || x == map.GetLength(0) - 1 || y == map.GetLength(2) - 1) {
+				return true;
+			} else
+				return false;
 		}
 
 		public void Dispose() {

@@ -20,12 +20,11 @@ namespace OpenGLTutorial1 {
 		static Texture stone = new Texture("Stone.png");
 		static Texture sand = new Texture("Sand.png");
 		static Texture treeLog = new Texture("TreeLog.png");
-		static Texture treeLeaves = new Texture("TreeLeaves.png");
+		static Texture treeLeaves = new Texture("TreeLeaf.png");
 		static Texture undefined = new Texture("Undefined.png");
 
 		/**
-		 * 
-		 * @param id ID of the block (0=dirt, 1=grass, 2=stone, 3=sand, none=null)
+		 * ID of the block (0=dirt, 1=grass, 2=stone, 3=sand, none=null)
 		 */
 		public static Texture GetTextureByID(int id) {
 			Texture texture;

@@ -51,7 +51,8 @@ namespace OpenGLTutorial1 {
 		private Circle[] circles;
 		/*private Block dirt, grass, sand, stone;*/
 		private Map map;
-		private float xCam = 0, yCam = 0, zCam = 0, mov = 0.1f;
+		public static Player player;
+		private float xCam = 0, yCam = 0, zCam = 0, mov = 1.0f;
 		private float ryCam = 0;
 
 		public Game() {
@@ -85,14 +86,18 @@ namespace OpenGLTutorial1 {
 			//Create perspective
 			program.Use();
 			program["projection_matrix"].SetValue(
-				Matrix4.CreatePerspectiveFieldOfView(0.55f,
+				Matrix4.CreatePerspectiveFieldOfView(0.95f,
 				(float)width / height, 0.1f, 1000f));
 			Vector3 camPos = new Vector3(0,0,0);
 			//-5 3 -5
 			program["view_matrix"].SetValue(
-				Matrix4.LookAt(new Vector3(0, 0, -10),
+				Matrix4.CreateTranslation(new Vector3(0,0,0)) *
+				Matrix4.LookAt(new Vector3(0, 0, -1),
 				camPos,
 				new Vector3(0, 1, 0)));
+
+			player = new Player(0,0,0);
+			player.RenderDistance = 1;
 
 			CreateModels();
 
@@ -107,7 +112,7 @@ namespace OpenGLTutorial1 {
 				circles[i] = new Circle(0.5f, 10, pos, rot, Vector3.One);
 			}
 
-			map = new Map(50,50);
+			map = new Map(20,20);
 
 			/*
 			dirt = new Block(0, new Vector3(-2, 0, 0), Vector3.Zero, Vector3.One);
@@ -134,9 +139,9 @@ namespace OpenGLTutorial1 {
 
 		private void OnKeyboardDown(byte key, int x, int y) {
 			if(key == 'w')
-				zCam -= mov + 0.2f;
+				zCam -= mov;
 			else if(key == 's')
-				zCam += mov + 0.2f;
+				zCam += mov;
 
 			if(key == 'd')
 				xCam += mov;
@@ -149,9 +154,18 @@ namespace OpenGLTutorial1 {
 				yCam -= mov;
 
 			if(key == 'x')
-				ryCam += mov;
+				ryCam += mov * 0.1f;
 			else if(key == 'z')
-				ryCam -= mov;
+				ryCam -= mov * 0.1f;
+
+			if(key == 'o') {
+				player.RenderDistance++;
+				
+			}else if(key == 'p') {
+				player.RenderDistance--;
+				if(player.RenderDistance <= 0)
+					player.RenderDistance = 1;
+			}
 
 			if(key == 27)
 				Glut.glutLeaveMainLoop();
@@ -176,9 +190,11 @@ namespace OpenGLTutorial1 {
 			program["view_matrix"].SetValue(
 				Matrix4.CreateTranslation(new Vector3(xCam, yCam, zCam)) *
 				Matrix4.CreateRotationX(ryCam)*
-				Matrix4.LookAt(new Vector3(0,0,-10),
+				Matrix4.LookAt(new Vector3(0,0,-1),
 								Vector3.Zero,
 								new Vector3(0,1,0)));
+
+			player.position = new Vector3(xCam, yCam, zCam);
 
 			/*
 			dirt.Rotate(Vector3.UnitX * 0.001f);
