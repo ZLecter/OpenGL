@@ -31,19 +31,25 @@ namespace OpenGLTutorial1 {
 
 	class Map {
 		public Block[,,] map;
+		public int mapX, mapY;
 		int mapHeight = 16;
 		int maxBlocks = 10;
-		double probTreeSpawn = 0.1;
+		double probTreeSpawn = 0.05;
 
-		//public static int RenderDistance = 3;
+		int extraMap = 1;
+
+		float perlinScale;
 
 		public Map(int x, int y) {
+			Console.WriteLine("----------MAP INIT-------------");
+			mapX = x;
+			mapY = y;
 			map = new Block[x, mapHeight,y];
 			PerlinNoise noise = new PerlinNoise();
 			Random rng = new Random();
 			PerlinNoise.Seed = rng.Next(0, 123456789);
 			PerlinNoise.Seed = 1;
-			float perlinScale = (float)1 / 20;
+			perlinScale = (float)1 / 20;
 
 			for(int i = 0; i < x; i++) {
 				for(int j = 0; j < y; j++) {
@@ -60,7 +66,7 @@ namespace OpenGLTutorial1 {
 						if(nid == (int)TextureManager.BlockID.GRASS && k == id) {
 							double prob = rng.NextDouble();
 							if(prob < probTreeSpawn) {
-								Console.WriteLine("WILL CREATE TREE at: " + i + ", " + j);
+								//Console.WriteLine("WILL CREATE TREE at: " + i + ", " + j);
 								GenerateTree(x, y, i, j, k, npos, rng);
 							}
 						}
@@ -90,8 +96,87 @@ namespace OpenGLTutorial1 {
 				//Console.WriteLine();
 			}
 
+			Console.WriteLine("--------END MAP---------");
+
 		}
 
+		//axisToExpand -> true = x | false = y
+		public void ResizeMap(bool axisToExpand) {
+			Console.WriteLine("Prev map = [" + mapX + ", " + mapHeight + ", " + mapX);
+			int newMapX = (axisToExpand) ? mapX + extraMap : mapX;
+			int newMapY = (!axisToExpand) ? mapY + extraMap : mapY;
+			
+
+			Block[,,] newMap = new Block[newMapX, mapHeight, newMapY];
+			//Clone previous map
+			for(int i = 0; i < map.GetLength(0); i++) {
+				for(int j = 0; j < map.GetLength(2); j++) {
+					for(int k = 0; k < map.GetLength(1); k++) {
+						if(map[i,k,j] != null) {
+							newMap[i, k, j] = map[i, k, j];
+						}
+					}
+				}
+			}
+
+			Console.WriteLine("Prev map = [" + (newMapX) + ", " + mapHeight + ", " + (newMapY));
+
+			//Generate new edges
+			Random rng = new Random();
+
+			int xx = (!axisToExpand) ? 0 : map.GetLength(0);
+			int zz = (axisToExpand) ? 0 : map.GetLength(2);
+
+			for(int i = xx; i < newMap.GetLength(0); i++) {
+				for(int j = zz; j < newMap.GetLength(2); j++) {
+
+					double yy = PerlinNoise.CalcPixel2D(i, j, perlinScale);
+					yy = ExtraMath.Map(yy, 0, 255, 0, maxBlocks);
+					int id = (int)yy;
+					//Console.WriteLine(id);
+					for(int k = id; k >= 0; k--) {
+
+						Vector3 npos = new Vector3(i, k, j);
+						int nid = GetIDByHeight(k);
+
+						//We check if top block is GRASS
+						if(nid == (int)TextureManager.BlockID.GRASS && k == id) {
+							double prob = rng.NextDouble();
+							if(prob < probTreeSpawn) {
+								//Console.WriteLine("WILL CREATE TREE at: " + i + ", " + j);
+								GenerateTree(newMapX, newMapY, i, j, k, npos, rng);
+							}
+						}
+
+						//Fill blocks below grass with dirt
+						if(k < id && nid == (int)TextureManager.BlockID.GRASS)
+							nid = (int)TextureManager.BlockID.DIRT;
+						yy = PerlinNoise.CalcPixel2D(i * nid, j * nid, perlinScale);
+						double xtra = ExtraMath.Map(yy, 0, 255, 0, 2);
+						//Console.Write((int)xtra + " ");
+
+						if((int)xtra == 0) {
+							if(nid == (int)TextureManager.BlockID.SAND && k > 1)
+								nid = (int)TextureManager.BlockID.DIRT;
+						}
+
+						if(rng.NextDouble() < 0.4f) {
+							if(k == 2)
+								nid = (int)TextureManager.BlockID.SAND;
+							else if(k == 1)
+								nid = (int)TextureManager.BlockID.STONE;
+						}
+
+						newMap[i, k, j] = new Block(nid, npos, Vector3.Zero, Vector3.One);
+					}
+
+				}
+			}
+
+			map = newMap;
+			mapX = newMapX;
+			mapY = newMapY;
+		}
 
 		public void GenerateTree(int x, int y, int i, int j, int k, Vector3 npos, Random rng) {
 			int[,] tree = Tree.GenTree(rng, mapHeight-maxBlocks-1);
@@ -106,21 +191,24 @@ namespace OpenGLTutorial1 {
 						//There is no reason to build a block if its air/null
 						if(tree[tx, ty] != 0) {
 							
+							/* Tree debugger
 							Console.WriteLine("Tree created at " + ti + "-" + tj);
 							Console.WriteLine("With tree tile at " + tx + "-" + ty);
 							Console.WriteLine("Height:" + (k + extraHeight));
 							Console.WriteLine("Block id: " + tree[tx, ty]);
-							
+							*/
 							Vector3 tPos = new Vector3(ti, npos.Y + extraHeight, tj);
 
+							/*
 							Console.WriteLine("Vector WORLD: [" + (npos.X) + ", " + npos.Y + ", " + (npos.Z) + "]");
 							Console.WriteLine("Vector MAP: [" + ti + ", " + (k + extraHeight) + ", " + tj + "]");
+							*/
 							//Dont replace existing blocks
 							if(k+extraHeight < mapHeight) {
 							if(map[ti, k + extraHeight, tj] == null)
 								map[ti, k + extraHeight, tj] = new Block(tree[tx, ty], tPos, Vector3.Zero, Vector3.One);
 							}
-							Console.WriteLine();
+							//Console.WriteLine();
 						}
 					}
 					//Console.WriteLine();
@@ -128,13 +216,11 @@ namespace OpenGLTutorial1 {
 				}
 				//Si ti sobrepasa los 3 ciclos, resetearlo a i-1
 				if((tx + 1) % 3 == 0) {
-					//Console.WriteLine("Aqui se resetea TI a i-1\n");
-					Console.WriteLine("-------------------");
 					ti = i - 2;
 					extraHeight++;
 				}
 			}
-			Console.WriteLine("Tree has " + extraHeight + " of height");
+			//Console.WriteLine("Tree has " + extraHeight + " of height");
 		}
 
 		private int GetIDByHeight(double h) {
@@ -151,10 +237,9 @@ namespace OpenGLTutorial1 {
 
 		public void Draw(ShaderProgram shader) {
 			int blocksRendered = 0;
-
-			//Should we render blocks based on camera's distance?
 			
 			//Optimize draws, only render block that has atleast one empty neighbour
+
 			for(int y = 0; y < map.GetLength(1); y++){
 				for(int x = 0; x < map.GetLength(0); x++){
 					for(int z = 0; z < map.GetLength(2); z++){
@@ -177,7 +262,7 @@ namespace OpenGLTutorial1 {
 					}
 				}
 			}
-			Console.WriteLine("Blocks Rendered Opt: " + blocksRendered);
+			//Console.WriteLine("Blocks Rendered Opt: " + blocksRendered);
 			
 
 			//RENDER ALL BLOCKS. THIS IS NOT OPTIMIZED
@@ -189,7 +274,7 @@ namespace OpenGLTutorial1 {
 					blocksRendered++;
 				}
 			}
-			Console.WriteLine("Blocks Rendered Normal: " + blocksRendered);
+			//Console.WriteLine("Blocks Rendered Normal: " + blocksRendered);
 			*/
 
 		}
@@ -204,9 +289,9 @@ namespace OpenGLTutorial1 {
 		}
 
 		private bool IsBlockInside(int x, int y, int z) {
-			if(x >= 1 && x < map.GetLength(0) - 1 &&
-				y >= 1 && y < map.GetLength(1) - 1 &&
-				z >= 1 && z < map.GetLength(2) - 1) {
+			if(x >= 1 && x <= map.GetLength(0) - 1 &&
+				y >= 1 && y <= map.GetLength(1) - 1 &&
+				z >= 1 && z <= map.GetLength(2) - 1) {
 				return true;
 			} else
 				return false;
@@ -214,7 +299,7 @@ namespace OpenGLTutorial1 {
 
 		private bool IsBlockOnEdge(int x, int y, int z) {
 			if(z == 0 || x == 0 || y == 0 ||
-				z == map.GetLength(1) - 1 || x == map.GetLength(0) - 1 || y == map.GetLength(2) - 1) {
+				z == map.GetLength(2) - 1 || x == map.GetLength(0) - 1 || y == map.GetLength(1) - 1) {
 				return true;
 			} else
 				return false;

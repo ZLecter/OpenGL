@@ -43,17 +43,13 @@ namespace OpenGLTutorial1 {
         ";
 		#endregion
 
-		private int width = 1280, height = 720;
+		private int width = 800, height = 640;
 		private ShaderProgram program;
-
-		// private Texture crateTexture;
-		private int numCircles = 0;
-		private Circle[] circles;
-		/*private Block dirt, grass, sand, stone;*/
+		
 		private Map map;
 		public static Player player;
-		private float xCam = 0, yCam = 0, zCam = 0, mov = 1.0f;
-		private float ryCam = 0;
+		public static float xCam = 0, yCam = 0, zCam = 0, mov = 1.0f;
+		public static float ryCam = 0;
 
 		public Game() {
 			Init();
@@ -96,75 +92,31 @@ namespace OpenGLTutorial1 {
 				camPos,
 				new Vector3(0, 1, 0)));
 
-			player = new Player(0,0,0);
-			player.RenderDistance = 1;
 
+			player = new Player(0,0,0);
 			CreateModels();
 
 			Glut.glutMainLoop();
 		}
 
 		private void CreateModels() {
-			circles = new Circle[numCircles];
-			for(int i = 0; i < numCircles; i++) {
-				Vector3 pos = new Vector3(i-numCircles/2, 0, 0);
-				Vector3 rot = new Vector3(0, 0, i * 360 / numCircles);
-				circles[i] = new Circle(0.5f, 10, pos, rot, Vector3.One);
-			}
 
-			map = new Map(20,20);
-
-			/*
-			dirt = new Block(0, new Vector3(-2, 0, 0), Vector3.Zero, Vector3.One);
-			grass = new Block(1, new Vector3(-1, 0, 0), Vector3.Zero, Vector3.One);
-			stone = new Block(2, new Vector3(1, 0, 0), Vector3.Zero, Vector3.One);
-			sand = new Block(3, new Vector3(2, 0, 0), Vector3.Zero, Vector3.One);
-			*/
+			map = new Map(50,50);
 		}
 
 		private void OnClose() {
-			foreach(Circle c in circles) {
-				c.Dispose();
-			}
 			map.Dispose();
-			/*
-			dirt.Dispose();
-			grass.Dispose();
-			stone.Dispose();
-			sand.Dispose();
-			*/
+
 			program.DisposeChildren = true;
 			program.Dispose();
 		}
 
 		private void OnKeyboardDown(byte key, int x, int y) {
-			if(key == 'w')
-				zCam -= mov;
-			else if(key == 's')
-				zCam += mov;
+			player.KeyInput(key);
 
-			if(key == 'd')
-				xCam += mov;
-			else if(key == 'a')
-				xCam -= mov;
-
-			if(key == 'q')
-				yCam += mov;
-			else if(key == 'e')
-				yCam -= mov;
-
-			if(key == 'x')
-				ryCam += mov * 0.1f;
-			else if(key == 'z')
-				ryCam -= mov * 0.1f;
-
-			if(key == 'o') {
-				player.RenderDistance++;
-				
-			}else if(key == 'p') {
-				player.RenderDistance--;
-				if(player.RenderDistance <= 0)
-					player.RenderDistance = 1;
+			if(key == 'l') {
+				map.ResizeMap(false);
+				Console.WriteLine("Py Pos: " + (map.mapY  + player.position.Z));
 			}
 
 			if(key == 27)
@@ -179,12 +131,6 @@ namespace OpenGLTutorial1 {
 
 			Gl.UseProgram(program);
 
-			// Draw shit
-			foreach(Circle c in circles) {
-				//c.Translate(Vector3.UnitY * 0.001f);
-				c.Draw(program);
-			}
-
 			map.Draw(program);
 
 			program["view_matrix"].SetValue(
@@ -196,19 +142,13 @@ namespace OpenGLTutorial1 {
 
 			player.position = new Vector3(xCam, yCam, zCam);
 
-			/*
-			dirt.Rotate(Vector3.UnitX * 0.001f);
-			dirt.Draw(program);
-
-			grass.Rotate(Vector3.UnitX * 0.001f);
-			grass.Draw(program);
-
-			stone.Rotate(Vector3.UnitX * 0.001f);
-			stone.Draw(program);
-
-			sand.Rotate(Vector3.UnitX * 0.001f);
-			sand.Draw(program);
-			*/
+			if(map.mapY + player.position.Z < player.RenderDistance + 2) {
+				Console.WriteLine("Created new line on Z");
+				map.ResizeMap(false);
+			}else if(map.mapX + player.position.X < player.RenderDistance + 2) {
+				Console.WriteLine("Created new line on X");
+				map.ResizeMap(true);
+			}
 
 			Glut.glutSwapBuffers();
 		}

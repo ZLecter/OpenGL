@@ -22,18 +22,6 @@ namespace OpenGLTutorial1 {
 							{0,5,0},
 							{0,0,0}};
 
-		public static void Printeo() {
-			/*
-			for(int i = 0; i < 3; i++) {
-				for(int j = 0; j < 3; j++) {
-					Console.Write(b1[i,j] + " ");
-				}
-				Console.WriteLine();
-			}
-			*/
-			Console.WriteLine(b1[1, 0] + " " + b1[1, 1] + "" + b1[1, 2]);
-		}
-
 		//Each layer is 3 height, so base1 equals the first 3 xs
 		//Mininum height is 4 but 1,2 are constant. 1-2 for logs, 3 for leaves, and beyond are procedural
 		public static int[,] GenTree(Random rng, int maxTreeHeight) {
